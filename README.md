@@ -61,3 +61,22 @@ ngrok http 5001
 
 ### Important Note: 
 - Keep your ngrok tunnel running for QStash callbacks to work in development.
+
+### Usage
+
+1. Start the application
+```bash
+python app.py
+```
+
+2. Visit `http://localhost:5001` in your browser
+
+3. Fill out the form with:
+   - Recipient's name and phone number
+   - Birth date (MM/DD format)
+   - Message time
+   - Choose default or custom message
+
+4. Click "Schedule Birthday Message" to create the schedule
+
+5. View the confirmation page with details of your scheduled message

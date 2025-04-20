@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Birthday SMS Scheduler</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="form-container">
+            <div class="header">
+                <h1>Birthday SMS Scheduler</h1>
+                <p class="text-muted">Schedule birthday messages using Twilio and QStash</p>
+            </div>
+            
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ 'success' if category == 'success' else 'danger' }}" role="alert">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
+            <form action="{{ url_for('schedule_message') }}" method="post">
+                <div class="mb-3">
+                    <label for="name" class="form-label">Recipient's Name</label>
+                    <input type="text" class="form-control" id="name" name="name" required>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="phone" class="form-label">Recipient's Phone Number</label>
+                    <input type="tel" class="form-control" id="phone" name="phone" 
+                           placeholder="+1234567890" required>
+                    <small class="form-text text-muted">Enter the phone number with country code (e.g., +1 for US)</small>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="birth_date" class="form-label">Birth Date (DD/MM)</label>
+                    <input type="text" class="form-control" id="birth_date" name="birth_date" 
+                           placeholder="31/12" pattern="[0-9]{1,2}/[0-9]{1,2}" required>
+                    <small class="form-text text-muted">Format: DD/MM (e.g., 31/12 for December 31st)</small>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="message_time" class="form-label">Message Time (HH:MM)</label>
+                    <input type="time" class="form-control" id="message_time" name="message_time" required>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Message Type</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="message_type" id="default_message" 
+                               value="default" checked onchange="toggleCustomMessage()">
+                        <label class="form-check-label" for="default_message">
+                            Default Birthday Message
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="message_type" id="custom_message_radio" 
+                               value="custom" onchange="toggleCustomMessage()">
+                        <label class="form-check-label" for="custom_message_radio">
+                            Custom Message
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="mb-3 hidden" id="custom_message_container">
+                    <label for="custom_message" class="form-label">Your Custom Message</label>
+                    <textarea class="form-control" id="custom_message" name="custom_message" rows="4"></textarea>
+                </div>
+                
+                <button type="submit" class="btn btn-primary w-100">Schedule Birthday Message</button>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+        function toggleCustomMessage() {
+            const customMessageContainer = document.getElementById('custom_message_container');
+            const customMessageRadio = document.getElementById('custom_message_radio');
+            const customMessageTextarea = document.getElementById('custom_message');
+            
+            if (customMessageRadio.checked) {
+                customMessageContainer.classList.remove('hidden');
+                customMessageTextarea.required = true;
+            } else {
+                customMessageContainer.classList.add('hidden');
+                customMessageTextarea.required = false;
+            }
+        }
+    </script>
+</body>
+</html>

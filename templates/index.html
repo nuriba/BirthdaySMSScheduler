@@ -25,52 +25,58 @@
                 {% endif %}
             {% endwith %}
             
-            <form action="{{ url_for('schedule_message') }}" method="post">
+            <form id="birthdayForm" action="{{ url_for('schedule_message') }}" method="post" onsubmit="return validateForm()">
                 <div class="mb-3">
                     <label for="name" class="form-label">Recipient's Name</label>
-                    <input type="text" class="form-control" id="name" name="name" required>
+                    <input type="text" class="form-control" id="name" name="name" value="{{ form_data.name if form_data else '' }}" required>
+                    <div class="invalid-feedback">Please enter a name.</div>
                 </div>
                 
                 <div class="mb-3">
                     <label for="phone" class="form-label">Recipient's Phone Number</label>
                     <input type="tel" class="form-control" id="phone" name="phone" 
-                           placeholder="+1234567890" required>
+                           placeholder="+1234567890" value="{{ form_data.phone if form_data else '' }}" required>
                     <small class="form-text text-muted">Enter the phone number with country code (e.g., +1 for US)</small>
+                    <div class="invalid-feedback">Please enter a valid phone number with country code.</div>
                 </div>
                 
                 <div class="mb-3">
-                    <label for="birth_date" class="form-label">Birth Date (DD/MM)</label>
+                    <label for="birth_date" class="form-label">Birth Date (MM/DD)</label>
                     <input type="text" class="form-control" id="birth_date" name="birth_date" 
-                           placeholder="31/12" pattern="[0-9]{1,2}/[0-9]{1,2}" required>
-                    <small class="form-text text-muted">Format: DD/MM (e.g., 31/12 for December 31st)</small>
+                           placeholder="12/31" value="{{ form_data.birth_date if form_data else '' }}" required>
+                    <small class="form-text text-muted">Format: MM/DD (e.g., 12/31 for December 31st)</small>
+                    <div class="invalid-feedback">Please enter a valid date in MM/DD format.</div>
                 </div>
                 
                 <div class="mb-3">
                     <label for="message_time" class="form-label">Message Time (HH:MM)</label>
-                    <input type="time" class="form-control" id="message_time" name="message_time" required>
+                    <input type="time" class="form-control" id="message_time" name="message_time" 
+                           value="{{ form_data.message_time if form_data else '' }}" required>
+                    <div class="invalid-feedback">Please select a time.</div>
                 </div>
                 
                 <div class="mb-3">
                     <label class="form-label">Message Type</label>
                     <div class="form-check">
                         <input class="form-check-input" type="radio" name="message_type" id="default_message" 
-                               value="default" checked onchange="toggleCustomMessage()">
+                               value="default" {% if not form_data or form_data.message_type == 'default' %}checked{% endif %} onchange="toggleCustomMessage()">
                         <label class="form-check-label" for="default_message">
                             Default Birthday Message
                         </label>
                     </div>
                     <div class="form-check">
                         <input class="form-check-input" type="radio" name="message_type" id="custom_message_radio" 
-                               value="custom" onchange="toggleCustomMessage()">
+                               value="custom" {% if form_data and form_data.message_type == 'custom' %}checked{% endif %} onchange="toggleCustomMessage()">
                         <label class="form-check-label" for="custom_message_radio">
                             Custom Message
                         </label>
                     </div>
                 </div>
                 
-                <div class="mb-3 hidden" id="custom_message_container">
+                <div class="mb-3 {% if not form_data or form_data.message_type != 'custom' %}hidden{% endif %}" id="custom_message_container">
                     <label for="custom_message" class="form-label">Your Custom Message</label>
-                    <textarea class="form-control" id="custom_message" name="custom_message" rows="4"></textarea>
+                    <textarea class="form-control" id="custom_message" name="custom_message" rows="4">{{ form_data.custom_message if form_data else '' }}</textarea>
+                    <div class="invalid-feedback">Please enter your custom message.</div>
                 </div>
                 
                 <button type="submit" class="btn btn-primary w-100">Schedule Birthday Message</button>
@@ -79,6 +85,11 @@
     </div>
     
     <script>
+        // Initialize the form on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            toggleCustomMessage();
+        });
+    
         function toggleCustomMessage() {
             const customMessageContainer = document.getElementById('custom_message_container');
             const customMessageRadio = document.getElementById('custom_message_radio');
@@ -91,6 +102,80 @@
                 customMessageContainer.classList.add('hidden');
                 customMessageTextarea.required = false;
             }
+        }
+        
+        function validateForm() {
+            let isValid = true;
+            const form = document.getElementById('birthdayForm');
+            const inputs = form.querySelectorAll('input, textarea');
+            
+            // Validate name
+            const nameInput = document.getElementById('name');
+            if (!nameInput.value.trim()) {
+                nameInput.classList.add('is-invalid');
+                isValid = false;
+            } else {
+                nameInput.classList.remove('is-invalid');
+            }
+            
+            // Validate phone
+            const phoneInput = document.getElementById('phone');
+            const phonePattern = /^\+[0-9]{6,15}$/;
+            if (!phonePattern.test(phoneInput.value.trim())) {
+                phoneInput.classList.add('is-invalid');
+                isValid = false;
+            } else {
+                phoneInput.classList.remove('is-invalid');
+            }
+            
+            // Validate birth date
+            const birthDateInput = document.getElementById('birth_date');
+            const datePattern = /^(0[1-9]|1[0-2])\/(0[1-9]|[12][0-9]|3[01])$/;
+            if (!datePattern.test(birthDateInput.value.trim())) {
+                birthDateInput.classList.add('is-invalid');
+                isValid = false;
+            } else {
+                // Also validate that the date is valid (e.g., no February 30)
+                const [month, day] = birthDateInput.value.split('/').map(Number);
+                const isValidDate = validateDate(month, day);
+                if (!isValidDate) {
+                    birthDateInput.classList.add('is-invalid');
+                    isValid = false;
+                } else {
+                    birthDateInput.classList.remove('is-invalid');
+                }
+            }
+            
+            // Validate time
+            const timeInput = document.getElementById('message_time');
+            if (!timeInput.value) {
+                timeInput.classList.add('is-invalid');
+                isValid = false;
+            } else {
+                timeInput.classList.remove('is-invalid');
+            }
+            
+            // Validate custom message if that option is selected
+            const customMessageRadio = document.getElementById('custom_message_radio');
+            const customMessageTextarea = document.getElementById('custom_message');
+            if (customMessageRadio.checked && !customMessageTextarea.value.trim()) {
+                customMessageTextarea.classList.add('is-invalid');
+                isValid = false;
+            } else {
+                customMessageTextarea.classList.remove('is-invalid');
+            }
+            
+            return isValid;
+        }
+        
+        function validateDate(month, day) {
+            // Check if date is valid
+            if (month < 1 || month > 12) return false;
+            
+            // Days in each month (not accounting for leap years)
+            const daysInMonth = [0, 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+            
+            return day > 0 && day <= daysInMonth[month];
         }
     </script>
 </body>

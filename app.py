@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, flash, redirect, url_for
+from flask import Flask, render_template, request, flash, redirect, url_for, session
 import os
 from datetime import datetime
 import json
@@ -13,8 +13,8 @@ app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY")
 
 # Server configuration
-PORT = int(os.getenv("PORT"))
-SERVER_URL = os.getenv("SERVER_URL")
+PORT = int(os.getenv("PORT", 5001))
+SERVER_URL = os.getenv("SERVER_URL", "http://localhost:5001")
 
 # Twilio configuration
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
@@ -32,18 +32,34 @@ qstash_client = QStash(QSTASH_TOKEN)
 @app.route('/')
 # Main page of the application
 def index():
-    # Render the main page
-    return render_template('index.html')
+    # Get any form data from session to preserve it on errors
+    form_data = session.get('form_data', {})
+    # Clear the session data after retrieving it
+    session.pop('form_data', None)
+    # Clear any success message
+    session.pop('success_data', None)
+    # Render the main page with any previously entered data
+    return render_template('index.html', form_data=form_data)
 
 # Define the route for the schedule form
 @app.route('/schedule', methods=['POST'])
 # Schedule a birthday message
 def schedule_message():
+    # Store form data in session to preserve it in case of errors
+    session['form_data'] = {
+        'name': request.form.get('name', ''),
+        'phone': request.form.get('phone', ''),
+        'birth_date': request.form.get('birth_date', ''),
+        'message_time': request.form.get('message_time', ''),
+        'message_type': request.form.get('message_type', 'default'),
+        'custom_message': request.form.get('custom_message', '')
+    }
+    
     try:
         # Get form data
         recipient_name = request.form.get('name')
         recipient_phone = request.form.get('phone')
-        birth_date = request.form.get('birth_date')  # Format: DD/MM
+        birth_date = request.form.get('birth_date')  # Format: MM/DD
         message_time = request.form.get('message_time')  # Format: HH:MM
         message_type = request.form.get('message_type') #default or custom
         custom_message = request.form.get('custom_message', '') # Only used if message_type is 'custom'
@@ -54,7 +70,7 @@ def schedule_message():
             return redirect(url_for('index'))
         
         # Parse date and time
-        day, month = map(int, birth_date.split('/'))
+        month, day = map(int, birth_date.split('/'))  # Changed to MM/DD format
         hour, minute = map(int, message_time.split(':'))
         
         # Create message
@@ -67,11 +83,15 @@ def schedule_message():
         current_date = datetime.now()
         current_year = current_date.year
         
-        schedule_date = datetime(current_year, month, day, hour, minute)
-        
-        # If the date has already passed this year, schedule for next year
-        if schedule_date < current_date:
-            schedule_date = datetime(current_year + 1, month, day, hour, minute)
+        try:
+            schedule_date = datetime(current_year, month, day, hour, minute)
+            
+            # If the date has already passed this year, schedule for next year
+            if schedule_date < current_date:
+                schedule_date = datetime(current_year + 1, month, day, hour, minute)
+        except ValueError as e:
+            flash(f'Invalid date: {str(e)}', 'error')
+            return redirect(url_for('index'))
             
         # Prepare the payload for the SMS sending endpoint
         sms_payload = {
@@ -83,7 +103,6 @@ def schedule_message():
         # Create a cron expression for the specific date and time
         cron_expression = f"{minute} {hour} {day} {month} *"
         
-
         try:
             # Use QStash SDK to create a schedule
             schedule_id = qstash_client.schedule.create(
@@ -93,12 +112,27 @@ def schedule_message():
                 headers={"Content-Type": "application/json"}
             )
             
+            # Store success data to display on confirmation page
+            session['success_data'] = {
+                'name': recipient_name,
+                'phone': recipient_phone,
+                'birth_date': birth_date,
+                'message_time': message_time,
+                'message_type': message_type,
+                'custom_message': custom_message,
+                'schedule_id': schedule_id,
+                'schedule_date': schedule_date.strftime("%B %d, %Y at %I:%M %p")
+            }
+            
+            # Clear form data from session on success
+            session.pop('form_data', None)
+            
+            # Redirect to confirmation page
+            return redirect(url_for('confirmation'))
             
         except Exception as qstash_error:
-            print(f"QStash Schedule Error: {str(qstash_error)}")
             flash(f'Failed to schedule message: {str(qstash_error)}', 'error')
-        
-        return redirect(url_for('index'))
+            return redirect(url_for('index'))
     
     except Exception as e:
         import traceback
@@ -106,6 +140,19 @@ def schedule_message():
         print(traceback.format_exc())
         flash(f'An error occurred: {str(e)}', 'error')
         return redirect(url_for('index'))
+
+# New route for confirmation page
+@app.route('/confirmation')
+def confirmation():
+    # Get success data from session
+    success_data = session.get('success_data')
+    
+    # If no success data, redirect to index
+    if not success_data:
+        return redirect(url_for('index'))
+    
+    # Render confirmation page
+    return render_template('confirmation.html', data=success_data)
 
 # Define the route for the SMS sending endpoint
 @app.route('/send-sms', methods=['POST'])
